@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bubble Dissolution Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.32.0/plotly.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1116;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e8eaed;
+    --muted: #9aa2b1;
+    --accent: #4f8cff;
+    --accent2: #34c38f;
+    --accent3: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 4px 0;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .plots {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .plot-title {
+    font-size: 12px;
+    color: var(--muted);
+    padding: 6px 4px 2px 4px;
+    min-height: 34px;
+    line-height: 1.4;
+  }
+  .plot-title b { color: var(--text); }
+  .plot-div { width: 100%; height: 220px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    height: fit-content;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin: 0 0 14px 0;
+  }
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .field label .val { color: var(--accent); font-variant-numeric: tabular-nums; }
+  select, input[type="range"] { width: 100%; }
+  select {
+    background: #10131a;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+  input[type="range"] {
+    accent-color: var(--accent);
+  }
+  .note {
+    font-size: 11px;
+    font-style: italic;
+    color: var(--muted);
+    margin-top: -10px;
+    margin-bottom: 16px;
+  }
+  .status {
+    font-size: 12.5px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: 4px;
+  }
+  .status b { color: var(--accent2); }
+  button {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    margin-top: 6px;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="plots">
+    <div class="plot-title" id="titleCo"></div>
+    <div class="plot-div" id="plotCo"></div>
+
+    <div class="plot-title" id="titleR"></div>
+    <div class="plot-div" id="plotR"></div>
+
+    <div class="plot-title" id="titleK"></div>
+    <div class="plot-div" id="plotK"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Co(t) mode</h2>
+    <div class="field">
+      <select id="modeSelect"></select>
+    </div>
+
+    <div class="field">
+      <label><span id="paramLabel">param</span><span class="val" id="paramVal"></span></label>
+      <input type="range" id="param" />
+    </div>
+
+    <h2 style="margin-top:22px;">Parameters</h2>
+
+    <div class="field">
+      <label><span>Initial radius R0 (nm)</span><span class="val" id="R0Val"></span></label>
+      <input type="range" id="R0" min="10" max="2000" step="1" value="50" />
+    </div>
+
+    <div class="field">
+      <label><span>t_max (s)</span><span class="val" id="tmaxVal"></span></label>
+      <input type="range" id="tmax" min="0.5" max="300" step="0.5" value="20" />
+    </div>
+
+    <div class="field">
+      <label><span>Kinetic constant (×1e-7 m/s)</span><span class="val" id="chiVal"></span></label>
+      <input type="range" id="chi" min="0.1" max="10" step="0.01" value="1.17" />
+    </div>
+
+    <div class="field">
+      <label><span>Diffusion coeff D (×1e-9 m²/s)</span><span class="val" id="DVal"></span></label>
+      <input type="range" id="D" min="0.1" max="20" step="0.01" value="2.10" />
+    </div>
+    <div class="note">has little effect on melting time here — process is kinetically limited, not diffusion-limited</div>
+
+    <button id="resetBtn">Reset</button>
+
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<script>
+const Ceq = 13.5;
+const Cs = 3.1;
+const K_EPS = 1e-6;
+
+function KfromCo(Co) {
+  let K = (Co - Ceq) / (Co - Cs);
+  if (Math.abs(K) < K_EPS) K = K >= 0 ? K_EPS : -K_EPS;
+  return K;
+}
+
+const MODES = {
+  constantCo: {
+    label: "Constant Co",
+    co: (t, p) => p,
+    paramLabel: "Co",
+    range: [13.6, 17.0, 0.01],
+    init: 13.7,
+    eq: (p) => `Co(t) = ${p.toFixed(3)}`,
+  },
+  linear: {
+    label: "Co: linear",
+    co: (t, p) => 13.5 + p * t,
+    paramLabel: "slope (a)",
+    range: [0.001, 0.5, 0.001],
+    init: 0.05,
+    eq: (p) => `Co(t) = 13.5 + ${p.toFixed(4)}·t`,
+  },
+  poly: {
+    label: "Co: polynomial",
+    co: (t, p) => 13.5 + p * t * t,
+    paramLabel: "a (coeff, t^2)",
+    range: [0.0001, 0.005, 0.0001],
+    init: 0.0007,
+    eq: (p) => `Co(t) = 13.5 + ${p.toFixed(5)}·t²`,
+  },
+  log: {
+    label: "Co: logarithmic",
+    co: (t, p) => p * Math.log(Math.max(t, 1e-6)) + 13.5,
+    paramLabel: "a (coeff, log t)",
+    range: [0.05, 1.0, 0.01],
+    init: 0.30,
+    eq: (p) => `Co(t) = ${p.toFixed(3)}·ln(t) + 13.5`,
+  },
+  expGrowth: {
+    label: "Co: exp growth",
+    co: (t, p) => 12.5 + Math.pow(p, t),
+    paramLabel: "base (b^t)",
+    range: [1.01, 1.15, 0.001],
+    init: 1.05,
+    eq: (p) => `Co(t) = 12.5 + ${p.toFixed(3)}^t`,
+  },
+  power: {
+    label: "Co: power law",
+    co: (t, p) => 12.5 + Math.pow(t, p),
+    paramLabel: "exponent (t^a)",
+    range: [0.05, 0.5, 0.005],
+    init: 0.10,
+    eq: (p) => `Co(t) = 12.5 + t^${p.toFixed(3)}`,
+  },
+  expDecay: {
+    label: "Co: exp decay",
+    co: (t, p) => 14.0 - Math.pow(p, -t),
+    paramLabel: "base (b^-t)",
+    range: [1.05, 2.0, 0.01],
+    init: 1.30,
+    eq: (p) => `Co(t) = 14 − ${p.toFixed(3)}^(−t)`,
+  },
+};
+
+function rhs(t, R, coFunc, param, R0_m, chi_val, D_val) {
+  R = Math.max(R, 0);
+  const Co = coFunc(t, param);
+  const K = KfromCo(Co);
+  const term1 = 1.0 / (chi_val * K);
+  const term2 = ((1 - K) * R * (R0_m - R)) / (D_val * K * R0_m);
+  const denom = term1 + term2;
+  if (denom === 0) return 0;
+  return -1.0 / denom;
+}
+
+function solveR(coFunc, param, R0_m, t_max, chi_val, D_val, nSteps = 1500) {
+  const dt = t_max / nSteps;
+  let t = 0, R = R0_m;
+  const tArr = [0], RArr = [R0_m];
+  let stopT = t_max;
+  let stopped = false;
+  for (let i = 0; i < nSteps; i++) {
+    const k1 = rhs(t, R, coFunc, param, R0_m, chi_val, D_val);
+    const k2 = rhs(t + dt / 2, R + (dt / 2) * k1, coFunc, param, R0_m, chi_val, D_val);
+    const k3 = rhs(t + dt / 2, R + (dt / 2) * k2, coFunc, param, R0_m, chi_val, D_val);
+    const k4 = rhs(t + dt, R + dt * k3, coFunc, param, R0_m, chi_val, D_val);
+    const Rnew = R + (dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4);
+    const tnew = t + dt;
+    if (Rnew <= 0) {
+      const frac = R / (R - Rnew || 1);
+      stopT = t + frac * dt;
+      tArr.push(stopT); RArr.push(0);
+      stopped = true; t = stopT; R = 0;
+      break;
+    }
+    if (Rnew >= 5 * R0_m) {
+      stopT = tnew;
+      tArr.push(tnew); RArr.push(5 * R0_m);
+      stopped = true; t = stopT; R = 5 * R0_m;
+      break;
+    }
+    t = tnew; R = Rnew;
+    tArr.push(t); RArr.push(R);
+  }
+  if (stopped && stopT < t_max - 1e-9) {
+    const extraN = 150;
+    for (let i = 1; i <= extraN; i++) {
+      tArr.push(stopT + (i / extraN) * (t_max - stopT));
+      RArr.push(R);
+    }
+  }
+  return { t: tArr, R: RArr, stopT, stopped };
+}
+
+const modeSelect = document.getElementById("modeSelect");
+const paramSlider = document.getElementById("param");
+const paramLabelEl = document.getElementById("paramLabel");
+const paramValEl = document.getElementById("paramVal");
+const R0Slider = document.getElementById("R0");
+const tmaxSlider = document.getElementById("tmax");
+const chiSlider = document.getElementById("chi");
+const DSlider = document.getElementById("D");
+
+for (const key of Object.keys(MODES)) {
+  const opt = document.createElement("option");
+  opt.value = key;
+  opt.textContent = MODES[key].label;
+  modeSelect.appendChild(opt);
+}
+
+function fmt(x, d = 3) {
+  return Number(x).toFixed(d);
+}
+
+function setupParamSlider(modeKey) {
+  const m = MODES[modeKey];
+  const [min, max, step] = m.range;
+  paramSlider.min = min;
+  paramSlider.max = max;
+  paramSlider.step = step;
+  paramSlider.value = m.init;
+  paramLabelEl.textContent = m.paramLabel;
+  paramValEl.textContent = fmt(m.init, 5);
+}
+
+function render() {
+  const modeKey = modeSelect.value;
+  const mode = MODES[modeKey];
+
+  const R0_nm = parseFloat(R0Slider.value);
+  const R0_m = R0_nm * 1e-9;
+  const t_max = parseFloat(tmaxSlider.value);
+  const chi_val = parseFloat(chiSlider.value) * 1e-7;
+  const D_val = parseFloat(DSlider.value) * 1e-9;
+  const param = parseFloat(paramSlider.value);
+
+  document.getElementById("R0Val").textContent = R0_nm.toFixed(0);
+  document.getElementById("tmaxVal").textContent = t_max.toFixed(1);
+  document.getElementById("chiVal").textContent = parseFloat(chiSlider.value).toFixed(2);
+  document.getElementById("DVal").textContent = parseFloat(DSlider.value).toFixed(2);
+  paramValEl.textContent = fmt(param, 5);
+
+  const sol = solveR(mode.co, param, R0_m, t_max, chi_val, D_val);
+  const t = sol.t;
+  const R_nm = sol.R.map((r) => r * 1e9);
+  const Co_t = t.map((tt) => mode.co(tt, param));
+  const K_t = Co_t.map(KfromCo);
+
+  const layoutBase = {
+    margin: { l: 50, r: 20, t: 10, b: 34 },
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(255,255,255,0.02)",
+    font: { color: "#c8ccd6", size: 11 },
+    xaxis: { title: "t (s)", range: [0, t_max], gridcolor: "#242833", zerolinecolor: "#242833" },
+    showlegend: false,
+  };
+
+  Plotly.react(
+    "plotCo",
+    [{ x: t, y: Co_t, mode: "lines", line: { color: "#4f8cff", width: 2 } }],
+    { ...layoutBase, yaxis: { title: "Co", gridcolor: "#242833", zerolinecolor: "#242833" } },
+    { displayModeBar: false, responsive: true }
+  );
+  Plotly.react(
+    "plotR",
+    [{ x: t, y: R_nm, mode: "lines", line: { color: "#34c38f", width: 2 } }],
+    { ...layoutBase, yaxis: { title: "R (nm)", gridcolor: "#242833", zerolinecolor: "#242833" } },
+    { displayModeBar: false, responsive: true }
+  );
+  Plotly.react(
+    "plotK",
+    [{ x: t, y: K_t, mode: "lines", line: { color: "#ff6b6b", width: 2 } }],
+    { ...layoutBase, yaxis: { title: "K", gridcolor: "#242833", zerolinecolor: "#242833" } },
+    { displayModeBar: false, responsive: true }
+  );
+
+  const eqStr = mode.eq(param);
+  const status = sol.stopT < t_max - 1e-9
+    ? `total melting time = ${sol.stopT.toPrecision(3)} s`
+    : "not fully melted by t_max";
+  document.getElementById("titleCo").innerHTML =
+    `<b>${mode.label}</b>:  ${eqStr}   |   ${status}`;
+
+  document.getElementById("titleR").innerHTML =
+    `t = (R0-R)/(χK) − (1-K)(R²-R0²)/(2DK) + (1-K)(R³-R0³)/(3DR0K)` +
+    `   |   R0 = ${R0_nm.toFixed(0)} nm,  χ = ${chi_val.toExponential(2)} m/s,  D = ${D_val.toExponential(2)} m²/s`;
+
+  let kLine;
+  const allSameCo = Co_t.every((v) => Math.abs(v - Co_t[0]) < 1e-9);
+  if (allSameCo) {
+    const Kval = KfromCo(Co_t[0]);
+    kLine = `K = (Co−${Ceq})/(Co−${Cs})  =  (${Co_t[0].toFixed(3)}−${Ceq})/(${Co_t[0].toFixed(3)}−${Cs})  =  ${Kval.toFixed(4)}`;
+  } else {
+    const kMin = Math.min(...K_t).toFixed(4);
+    const kMax = Math.max(...K_t).toFixed(4);
+    kLine = `K(t) = (Co(t)−${Ceq})/(Co(t)−${Cs})   |   K now ranges ${kMin} to ${kMax} as Co(t) evolves`;
+  }
+  document.getElementById("titleK").innerHTML = kLine;
+
+  document.getElementById("status").innerHTML =
+    `<b>${status}</b><br>Mode: ${mode.label}`;
+}
+
+modeSelect.addEventListener("change", () => {
+  setupParamSlider(modeSelect.value);
+  render();
+});
+[paramSlider, R0Slider, tmaxSlider, chiSlider, DSlider].forEach((el) =>
+  el.addEventListener("input", render)
+);
+
+document.getElementById("resetBtn").addEventListener("click", () => {
+  modeSelect.value = "constantCo";
+  setupParamSlider("constantCo");
+  R0Slider.value = 50;
+  tmaxSlider.value = 20;
+  chiSlider.value = 1.17;
+  DSlider.value = 2.10;
+  render();
+});
+
+modeSelect.value = "constantCo";
+setupParamSlider("constantCo");
+render();
+</script>
+</body>
+</html>
