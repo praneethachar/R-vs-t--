@@ -111,6 +111,24 @@
     border-radius: 50%;
     flex-shrink: 0;
   }
+  .exp-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 8px;
+  }
+  .exp-r0-btn {
+    flex-shrink: 0;
+    width: auto !important;
+    margin-top: 0 !important;
+    margin-left: 18px;
+    padding: 3px 9px !important;
+    font-size: 11px !important;
+    border-radius: 5px !important;
+    color: var(--muted);
+    white-space: nowrap;
+  }
   .panel h2 {
     font-size: 13px;
     text-transform: uppercase;
@@ -253,13 +271,22 @@
   <div class="panel" id="expPanel">
     <h2>Experimental data</h2>
     <div class="field exp-field">
-      <label class="exp-check"><input type="checkbox" id="expCheck1" /> <span class="exp-swatch" style="background:#f5c542;"></span> Experiment 1 (n=8)</label>
+      <div class="exp-row">
+        <label class="exp-check"><input type="checkbox" id="expCheck1" /> <span class="exp-swatch" style="background:#f5c542;"></span> Experiment 1 (R0=42.775)</label>
+        <button class="exp-r0-btn" id="expR0Btn1" title="Set R0 slider to this experiment's initial radius">Change R0 to this value</button>
+      </div>
     </div>
     <div class="field exp-field">
-      <label class="exp-check"><input type="checkbox" id="expCheck2" /> <span class="exp-swatch" style="background:#c060ff;"></span> Experiment 2 (n=7)</label>
+      <div class="exp-row">
+        <label class="exp-check"><input type="checkbox" id="expCheck2" /> <span class="exp-swatch" style="background:#c060ff;"></span> Experiment 2 (R0=109.9)</label>
+        <button class="exp-r0-btn" id="expR0Btn2" title="Set R0 slider to this experiment's initial radius">Change R0 to this value</button>
+      </div>
     </div>
     <div class="field exp-field">
-      <label class="exp-check"><input type="checkbox" id="expCheck3" /> <span class="exp-swatch" style="background:#ff8a4c;"></span> Experiment 3 (n=4)</label>
+      <div class="exp-row">
+        <label class="exp-check"><input type="checkbox" id="expCheck3" /> <span class="exp-swatch" style="background:#ff8a4c;"></span> Experiment 3 (R0=55.57)</label>
+        <button class="exp-r0-btn" id="expR0Btn3" title="Set R0 slider to this experiment's initial radius">Change R0 to this value</button>
+      </div>
     </div>
     <div class="note" style="margin-top:2px;">overlaid as markers on the Solid core radius plot</div>
   </div>
@@ -447,6 +474,9 @@ const DSlider = document.getElementById("D");
 const expCheck1 = document.getElementById("expCheck1");
 const expCheck2 = document.getElementById("expCheck2");
 const expCheck3 = document.getElementById("expCheck3");
+const expR0Btn1 = document.getElementById("expR0Btn1");
+const expR0Btn2 = document.getElementById("expR0Btn2");
+const expR0Btn3 = document.getElementById("expR0Btn3");
 
 for (const key of Object.keys(MODES)) {
   const opt = document.createElement("option");
@@ -613,6 +643,14 @@ modeSelect.addEventListener("change", () => {
 [expCheck1, expCheck2, expCheck3].forEach((el) =>
   el.addEventListener("change", render)
 );
+
+function useExpR0(exp) {
+  R0Slider.value = exp.R[0];
+  render();
+}
+expR0Btn1.addEventListener("click", () => useExpR0(EXPERIMENTS.exp1));
+expR0Btn2.addEventListener("click", () => useExpR0(EXPERIMENTS.exp2));
+expR0Btn3.addEventListener("click", () => useExpR0(EXPERIMENTS.exp3));
 
 document.getElementById("resetBtn").addEventListener("click", () => {
   modeSelect.value = "constantCo";
