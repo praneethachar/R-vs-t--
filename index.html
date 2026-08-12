@@ -76,14 +76,40 @@
     margin-top: 3px;
   }
   .plot-div { width: 100%; height: 280px; }
+  .side-col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: sticky;
+    top: 24px;
+    height: fit-content;
+  }
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 18px;
     height: fit-content;
-    position: sticky;
-    top: 24px;
+  }
+  .exp-field { margin-bottom: 10px; }
+  .exp-check {
+    display: flex !important;
+    justify-content: flex-start !important;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .exp-check input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--accent);
+  }
+  .exp-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
   }
   .panel h2 {
     font-size: 13px;
@@ -178,6 +204,7 @@
     <div class="plot-div" id="plotK"></div>
   </div>
 
+  <div class="side-col">
   <div class="panel">
     <h2>Co(t) mode</h2>
     <div class="panel-eq" id="panelEqCo"></div>
@@ -188,6 +215,11 @@
     <div class="field">
       <label><span id="paramLabel">param</span><span class="val" id="paramVal"></span></label>
       <input type="range" id="param" />
+    </div>
+
+    <div class="field" id="constField">
+      <label><span id="constLabel">constant</span><span class="val" id="constVal"></span></label>
+      <input type="range" id="constSlider" />
     </div>
 
     <h2 style="margin-top:22px;">Parameters</h2>
@@ -217,9 +249,45 @@
 
     <div class="status" id="status"></div>
   </div>
+
+  <div class="panel" id="expPanel">
+    <h2>Experimental data</h2>
+    <div class="field exp-field">
+      <label class="exp-check"><input type="checkbox" id="expCheck1" /> <span class="exp-swatch" style="background:#f5c542;"></span> Experiment 1 (n=8)</label>
+    </div>
+    <div class="field exp-field">
+      <label class="exp-check"><input type="checkbox" id="expCheck2" /> <span class="exp-swatch" style="background:#c060ff;"></span> Experiment 2 (n=7)</label>
+    </div>
+    <div class="field exp-field">
+      <label class="exp-check"><input type="checkbox" id="expCheck3" /> <span class="exp-swatch" style="background:#ff8a4c;"></span> Experiment 3 (n=4)</label>
+    </div>
+    <div class="note" style="margin-top:2px;">overlaid as markers on the Solid core radius plot</div>
+  </div>
+  </div>
 </div>
 
 <script>
+const EXPERIMENTS = {
+  exp1: {
+    label: "Experiment 1",
+    color: "#f5c542",
+    t: [0, 0.269, 0.668, 4.423, 4.841, 5.498, 5.672, 5.998],
+    R: [42.775, 41.74, 40.325, 29.215, 25.865, 20, 15, 0],
+  },
+  exp2: {
+    label: "Experiment 2",
+    color: "#c060ff",
+    t: [0, 4.01, 10.37, 15.759, 19.256, 23.167, 24.742],
+    R: [109.9, 102.3, 100, 86.53, 68.4615, 40, 0],
+  },
+  exp3: {
+    label: "Experiment 3",
+    color: "#ff8a4c",
+    t: [0, 5.141, 6.815, 7.909],
+    R: [55.57, 48.0152, 43.1818, 0],
+  },
+};
+
 const Ceq = 13.5;
 const Cs = 3.1;
 const K_EPS = 1e-6;
@@ -233,59 +301,84 @@ function KfromCo(Co) {
 const MODES = {
   constantCo: {
     label: "Constant Co",
-    co: (t, p) => p,
+    co: (t, p, c) => p,
     paramLabel: "Co",
     range: [13.6, 17.0, 0.01],
     init: 13.7,
-    eqTex: (p) => `C_o(t) = ${p.toFixed(3)}`,
+    hasConst: false,
+    eqTex: (p, c) => `C_o(t) = ${p.toFixed(3)}`,
   },
   linear: {
     label: "Co: linear",
-    co: (t, p) => 13.5 + p * t,
+    co: (t, p, c) => c + p * t,
     paramLabel: "slope (a)",
     range: [0.001, 0.5, 0.001],
     init: 0.05,
-    eqTex: (p) => `C_o(t) = 13.5 + ${p.toFixed(4)}\\,t`,
+    hasConst: true,
+    constLabel: "constant term (Co₀)",
+    constRange: [8.0, 18.0, 0.1],
+    constInit: 13.5,
+    eqTex: (p, c) => `C_o(t) = ${c.toFixed(1)} + ${p.toFixed(4)}\\,t`,
   },
   poly: {
     label: "Co: polynomial",
-    co: (t, p) => 13.5 + p * t * t,
+    co: (t, p, c) => c + p * t * t,
     paramLabel: "a (coeff, t^2)",
     range: [0.0001, 0.005, 0.0001],
     init: 0.0007,
-    eqTex: (p) => `C_o(t) = 13.5 + ${p.toFixed(5)}\\,t^{2}`,
+    hasConst: true,
+    constLabel: "constant term (Co₀)",
+    constRange: [8.0, 18.0, 0.1],
+    constInit: 13.5,
+    eqTex: (p, c) => `C_o(t) = ${c.toFixed(1)} + ${p.toFixed(5)}\\,t^{2}`,
   },
   log: {
     label: "Co: logarithmic",
-    co: (t, p) => p * Math.log(Math.max(t, 1e-6)) + 13.5,
+    co: (t, p, c) => p * Math.log(Math.max(t, 1e-6)) + c,
     paramLabel: "a (coeff, log t)",
     range: [0.05, 1.0, 0.01],
     init: 0.30,
-    eqTex: (p) => `C_o(t) = ${p.toFixed(3)}\\ln(t) + 13.5`,
+    hasConst: true,
+    constLabel: "constant term (Co₀)",
+    constRange: [8.0, 18.0, 0.1],
+    constInit: 13.5,
+    eqTex: (p, c) => `C_o(t) = ${p.toFixed(3)}\\ln(t) + ${c.toFixed(1)}`,
   },
   expGrowth: {
     label: "Co: exp growth",
-    co: (t, p) => 12.5 + Math.pow(p, t),
+    co: (t, p, c) => c + Math.pow(p, t),
     paramLabel: "base (b^t)",
     range: [1.01, 1.15, 0.001],
     init: 1.05,
-    eqTex: (p) => `C_o(t) = 12.5 + ${p.toFixed(3)}^{t}`,
+    hasConst: true,
+    constLabel: "constant term (Co₀)",
+    constRange: [8.0, 18.0, 0.1],
+    constInit: 12.5,
+    eqTex: (p, c) => `C_o(t) = ${c.toFixed(1)} + ${p.toFixed(3)}^{t}`,
   },
   power: {
     label: "Co: power law",
-    co: (t, p) => 13.6 + Math.pow(t, p),
+    co: (t, p, c) => c + Math.pow(t, p),
     paramLabel: "exponent (t^a)",
     range: [0.05, 0.5, 0.005],
     init: 0.10,
-    eqTex: (p) => `C_o(t) = 13.6 + t^{${p.toFixed(3)}}`,
+    hasConst: true,
+    constLabel: "constant term (Co₀)",
+    constRange: [8.0, 18.0, 0.1],
+    constInit: 13.6,
+    eqTex: (p, c) => `C_o(t) = ${c.toFixed(1)} + t^{${p.toFixed(3)}}`,
   },
   expDecay: {
     label: "Co: exp decay",
-    co: (t, p) => 14.6 - Math.pow(p, -t),
+    co: (t, p, c) => c - Math.pow(p, -t),
     paramLabel: "base (b^-t)",
     range: [1.05, 2.0, 0.01],
     init: 1.30,
-    eqTex: (p) => `C_o(t) = 14.6 - ${p.toFixed(3)}^{-t}`,
+    hasConst: true,
+    constLabel: "constant term",
+    constRange: [8.0, 18.0, 0.1],
+    constInit: 14.6,
+    eqTex: (p, c) => `C_o(t) = ${c.toFixed(1)} - ${p.toFixed(3)}^{-t}`,
   },
 };
 
@@ -343,10 +436,17 @@ const modeSelect = document.getElementById("modeSelect");
 const paramSlider = document.getElementById("param");
 const paramLabelEl = document.getElementById("paramLabel");
 const paramValEl = document.getElementById("paramVal");
+const constSlider = document.getElementById("constSlider");
+const constLabelEl = document.getElementById("constLabel");
+const constValEl = document.getElementById("constVal");
+const constFieldEl = document.getElementById("constField");
 const R0Slider = document.getElementById("R0");
 const tmaxSlider = document.getElementById("tmax");
 const chiSlider = document.getElementById("chi");
 const DSlider = document.getElementById("D");
+const expCheck1 = document.getElementById("expCheck1");
+const expCheck2 = document.getElementById("expCheck2");
+const expCheck3 = document.getElementById("expCheck3");
 
 for (const key of Object.keys(MODES)) {
   const opt = document.createElement("option");
@@ -368,6 +468,19 @@ function setupParamSlider(modeKey) {
   paramSlider.value = m.init;
   paramLabelEl.textContent = m.paramLabel;
   paramValEl.textContent = fmt(m.init, 5);
+
+  if (m.hasConst) {
+    const [cmin, cmax, cstep] = m.constRange;
+    constSlider.min = cmin;
+    constSlider.max = cmax;
+    constSlider.step = cstep;
+    constSlider.value = m.constInit;
+    constLabelEl.textContent = m.constLabel;
+    constValEl.textContent = fmt(m.constInit, 1);
+    constFieldEl.style.display = "";
+  } else {
+    constFieldEl.style.display = "none";
+  }
 }
 
 function render() {
@@ -380,17 +493,20 @@ function render() {
   const chi_val = parseFloat(chiSlider.value) * 1e-7;
   const D_val = parseFloat(DSlider.value) * 1e-9;
   const param = parseFloat(paramSlider.value);
+  const constVal = mode.hasConst ? parseFloat(constSlider.value) : 0;
+  const coFunc = (tt, pp) => mode.co(tt, pp, constVal);
 
   document.getElementById("R0Val").textContent = R0_nm.toFixed(0);
   document.getElementById("tmaxVal").textContent = t_max.toFixed(1);
   document.getElementById("chiVal").textContent = parseFloat(chiSlider.value).toFixed(2);
   document.getElementById("DVal").textContent = parseFloat(DSlider.value).toFixed(2);
   paramValEl.textContent = fmt(param, 5);
+  if (mode.hasConst) constValEl.textContent = fmt(constVal, 1);
 
-  const sol = solveR(mode.co, param, R0_m, t_max, chi_val, D_val);
+  const sol = solveR(coFunc, param, R0_m, t_max, chi_val, D_val);
   const t = sol.t;
   const R_nm = sol.R.map((r) => r * 1e9);
-  const Co_t = t.map((tt) => mode.co(tt, param));
+  const Co_t = t.map((tt) => coFunc(tt, param));
   const K_t = Co_t.map(KfromCo);
 
   const layoutBase = {
@@ -408,10 +524,32 @@ function render() {
     { ...layoutBase, yaxis: { title: "Co", gridcolor: "#242833", zerolinecolor: "#242833" } },
     { displayModeBar: false, responsive: true }
   );
+  const rTraces = [
+    { x: t, y: R_nm, mode: "lines", name: "Model", line: { color: "#34c38f", width: 2 } },
+  ];
+  const checkedExps = [
+    [expCheck1, EXPERIMENTS.exp1],
+    [expCheck2, EXPERIMENTS.exp2],
+    [expCheck3, EXPERIMENTS.exp3],
+  ].filter(([cb]) => cb.checked);
+  for (const [, exp] of checkedExps) {
+    rTraces.push({
+      x: exp.t,
+      y: exp.R,
+      mode: "markers",
+      name: exp.label,
+      marker: { color: exp.color, size: 7, symbol: "circle" },
+    });
+  }
   Plotly.react(
     "plotR",
-    [{ x: t, y: R_nm, mode: "lines", line: { color: "#34c38f", width: 2 } }],
-    { ...layoutBase, yaxis: { title: "R (nm)", gridcolor: "#242833", zerolinecolor: "#242833" } },
+    rTraces,
+    {
+      ...layoutBase,
+      yaxis: { title: "R (nm)", gridcolor: "#242833", zerolinecolor: "#242833" },
+      showlegend: checkedExps.length > 0,
+      legend: { font: { color: "#c8ccd6", size: 10 }, bgcolor: "rgba(0,0,0,0)" },
+    },
     { displayModeBar: false, responsive: true }
   );
   Plotly.react(
@@ -427,10 +565,10 @@ function render() {
   const coMin = Math.min(...Co_t).toFixed(3);
   const coMax = Math.max(...Co_t).toFixed(3);
 
-  katex.render(mode.eqTex(param), document.getElementById("eqCo"), { throwOnError: false });
+  katex.render(mode.eqTex(param, constVal), document.getElementById("eqCo"), { throwOnError: false });
   document.getElementById("infoCo").innerHTML =
     `<b>${mode.label}</b> &nbsp;|&nbsp; Co range: ${coMin} to ${coMax}`;
-  katex.render(mode.eqTex(param), document.getElementById("panelEqCo"), { throwOnError: false });
+  katex.render(mode.eqTex(param, constVal), document.getElementById("panelEqCo"), { throwOnError: false });
 
   katex.render(
     "t=\\dfrac{R_0-R}{\\chi K}-\\dfrac{(1-K)(R^{2}-R_0^{2})}{2DK}+\\dfrac{(1-K)(R^{3}-R_0^{3})}{3DR_0K}",
@@ -469,8 +607,11 @@ modeSelect.addEventListener("change", () => {
   setupParamSlider(modeSelect.value);
   render();
 });
-[paramSlider, R0Slider, tmaxSlider, chiSlider, DSlider].forEach((el) =>
+[paramSlider, constSlider, R0Slider, tmaxSlider, chiSlider, DSlider].forEach((el) =>
   el.addEventListener("input", render)
+);
+[expCheck1, expCheck2, expCheck3].forEach((el) =>
+  el.addEventListener("change", render)
 );
 
 document.getElementById("resetBtn").addEventListener("click", () => {
@@ -480,6 +621,9 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   tmaxSlider.value = 20;
   chiSlider.value = 1.17;
   DSlider.value = 2.10;
+  expCheck1.checked = false;
+  expCheck2.checked = false;
+  expCheck3.checked = false;
   render();
 });
 
