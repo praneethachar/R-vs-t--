@@ -53,9 +53,17 @@
   }
   .plot-title {
     padding: 8px 4px 4px 4px;
-    min-height: 58px;
+    min-height: 76px;
   }
   .plot-title b { color: var(--text); }
+  .plot-heading {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 4px;
+  }
   .eq-line {
     color: var(--text);
     font-size: 15px;
@@ -81,6 +89,17 @@
     color: var(--muted);
     margin: 0 0 14px 0;
   }
+  .panel-eq {
+    color: var(--text);
+    font-size: 14px;
+    background: #10131a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 10px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+  }
+  .panel-eq .katex { font-size: 1em; }
   .field { margin-bottom: 16px; }
   .field label {
     display: flex;
@@ -135,18 +154,21 @@
 <div class="layout">
   <div class="plots">
     <div class="plot-title">
+      <div class="plot-heading">Surface P concentration, Co</div>
       <div class="eq-line" id="eqCo"></div>
       <div class="info-line" id="infoCo"></div>
     </div>
     <div class="plot-div" id="plotCo"></div>
 
     <div class="plot-title">
+      <div class="plot-heading">Solid core radius vs time</div>
       <div class="eq-line" id="eqR"></div>
       <div class="info-line" id="infoR"></div>
     </div>
     <div class="plot-div" id="plotR"></div>
 
     <div class="plot-title">
+      <div class="plot-heading">Concentration ratio, K</div>
       <div class="eq-line" id="eqK"></div>
       <div class="info-line" id="infoK"></div>
     </div>
@@ -155,6 +177,7 @@
 
   <div class="panel">
     <h2>Co(t) mode</h2>
+    <div class="panel-eq" id="panelEqCo"></div>
     <div class="field">
       <select id="modeSelect"></select>
     </div>
@@ -401,6 +424,7 @@ function render() {
 
   katex.render(mode.eqTex(param), document.getElementById("eqCo"), { throwOnError: false });
   document.getElementById("infoCo").innerHTML = `<b>${mode.label}</b> &nbsp;|&nbsp; ${status}`;
+  katex.render(mode.eqTex(param), document.getElementById("panelEqCo"), { throwOnError: false });
 
   katex.render(
     "t=\\dfrac{R_0-R}{\\chi K}-\\dfrac{(1-K)(R^{2}-R_0^{2})}{2DK}+\\dfrac{(1-K)(R^{3}-R_0^{3})}{3DR_0K}",
